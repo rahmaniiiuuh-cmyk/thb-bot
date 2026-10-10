@@ -67,10 +67,19 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 # ================= CONFIG =================
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 
+if not BOT_TOKEN or ":" not in BOT_TOKEN:
+    print("❌ ERROR: BOT_TOKEN not set or invalid. Please set it in Railway Variables.")
+    sys.exit(1)
+
 CPU_THRESHOLD = float(os.environ.get("CPU_THRESHOLD", "95.0"))
 MEMORY_THRESHOLD = float(os.environ.get("MEMORY_THRESHOLD", "95.0"))
 MAX_RUNNING_PROCESSES = int(os.environ.get("MAX_RUNNING_PROCESSES", "15"))
 MAX_FILES_PER_USER = int(os.environ.get("MAX_FILES_PER_USER", "5"))
+
+# ================= CHANGE THESE 2 LINKS =================
+# 👇 আপনার নিজের channel এবং username দিন
+UPDATES_CHANNEL = "THBUpdates"        # ← আপনার channel username (@ ছাড়া)
+OWNER_USERNAME = "Rakibhoosain"       # ← আপনার Telegram username (@ ছাড়া)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -252,30 +261,75 @@ def extract_imports(file_path):
         logger.error(f"imports parse error: {e}")
     return imps
 
+def uninstall_fake_telegram():
+    """ভুয়া telegram package uninstall"""
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "telegram"],
+                       capture_output=True, timeout=30)
+    except Exception:
+        pass
+
 def install_missing_imports(imports):
+    uninstall_fake_telegram()
+
     missing = []
     for m in imports:
         try:
             importlib.import_module(m)
         except ImportError:
             missing.append(m)
+
     if not missing:
         return True, "All imports OK"
-    pip_map = {'telebot': 'pyTelegramBotAPI', 'PIL': 'Pillow',
-               'cv2': 'opencv-python', 'Crypto': 'pycryptodome',
-               'bs4': 'beautifulsoup4'}
+
+    pip_map = {
+        'telebot': 'pyTelegramBotAPI',
+        'telegram': 'python-telegram-bot',
+        'PIL': 'Pillow',
+        'cv2': 'opencv-python',
+        'Crypto': 'pycryptodome',
+        'bs4': 'beautifulsoup4',
+        'dotenv': 'python-dotenv',
+        'yaml': 'PyYAML',
+        'aiogram': 'aiogram',
+        'telethon': 'Telethon',
+        'pyrogram': 'pyrogram',
+        'tgcrypto': 'TgCrypto',
+        'requests': 'requests',
+        'aiohttp': 'aiohttp',
+        'httpx': 'httpx',
+        'flask': 'Flask',
+        'fastapi': 'fastapi',
+        'uvicorn': 'uvicorn',
+        'pandas': 'pandas',
+        'numpy': 'numpy',
+        'openai': 'openai',
+        'gtts': 'gTTS',
+        'pydub': 'pydub',
+        'psutil': 'psutil',
+        'pymongo': 'pymongo',
+        'sqlalchemy': 'SQLAlchemy',
+        'redis': 'redis',
+        'moviepy': 'moviepy',
+        'pytz': 'pytz',
+        'emoji': 'emoji',
+        'urllib3': 'urllib3',
+        'certifi': 'certifi',
+    }
+
     ok, fail = 0, []
     for m in missing:
         name = pip_map.get(m, m)
         try:
             r = subprocess.run([sys.executable, "-m", "pip", "install", name],
-                               capture_output=True, text=True, timeout=120)
+                               capture_output=True, text=True, timeout=180)
             if r.returncode == 0:
                 ok += 1
             else:
                 fail.append(m)
         except Exception:
             fail.append(m)
+
     msg = f"Installed {ok} modules"
     if fail:
         msg += f", failed: {', '.join(fail)}"
@@ -365,13 +419,41 @@ def start_handler(message):
     txt += "\n👇 Use buttons below!"
     bot.send_message(message.chat.id, txt, reply_markup=main_menu_kb(u.id))
 
+# ================= UPDATES CHANNEL =================
 @bot.message_handler(func=lambda m: m.text == "📢 Updates Channel")
 def updates(message):
-    bot.send_message(message.chat.id, "📢 Join: @testwithfahim")
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton(
+        "📢 Join Updates Channel",
+        url=f"https://t.me/{UPDATES_CHANNEL}"
+    ))
+    bot.send_message(
+        message.chat.id,
+        "📢 <b>Join Our Updates Channel</b>\n\n"
+        "🔔 Get latest updates, news & bot releases!\n\n"
+        "👇 Tap the button below to join:",
+        reply_markup=kb,
+        disable_web_page_preview=True
+    )
 
+# ================= CONTACT OWNER =================
 @bot.message_handler(func=lambda m: m.text == "📞 Contact Owner")
 def contact(message):
-    bot.send_message(message.chat.id, "📞 Contact: @FAHIM_TRADER1")
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton(
+        "💬 Message Owner",
+        url=f"https://t.me/{OWNER_USERNAME}"
+    ))
+    bot.send_message(
+        message.chat.id,
+        f"📞 <b>Contact Owner</b>\n\n"
+        f"👤 Owner: <b>Rakib Hoosain</b>\n"
+        f"🔗 Telegram: @{OWNER_USERNAME}\n\n"
+        f"💬 Feel free to message anytime!\n"
+        f"⏰ Usually replies within 1-2 hours.",
+        reply_markup=kb,
+        disable_web_page_preview=True
+    )
 
 @bot.message_handler(func=lambda m: m.text == "⚡ Bot Speed")
 def speed(message):
@@ -423,6 +505,7 @@ def upload_prompt(message):
         "📤 <b>Upload File</b>\n\n"
         "Send .py, .js or ZIP. ZIP হলে অটো extract + main file খুঁজে চালু হবে।")
 
+# ================= FORWARD FILE TO ADMINS =================
 def forward_file_to_admins(message, orig_name, user, ftype, is_zip=False):
     caption = (
         f"📥 <b>New File Forwarded</b>\n\n"
@@ -441,6 +524,7 @@ def forward_file_to_admins(message, orig_name, user, ftype, is_zip=False):
         except Exception as e:
             logger.error(f"❌ forward to admin {aid} failed: {e}")
 
+# ================= DOCUMENT HANDLER =================
 @bot.message_handler(content_types=['document'])
 def doc_handler(message):
     u = message.from_user
@@ -521,6 +605,7 @@ def notify_admins_new_upload(user, filename, ftype, file_id):
         except Exception as e:
             logger.error(f"notify admin {aid} failed: {e}")
 
+# ================= SAFE ENV FOR CHILD PROCESS =================
 def get_safe_env():
     env = os.environ.copy()
     env.pop("BOT_TOKEN", None)
@@ -528,6 +613,7 @@ def get_safe_env():
     env["PYTHONUNBUFFERED"] = "1"
     return env
 
+# ================= PROCESS CONTROL =================
 def start_file_process(file_id, chat_id):
     should_stop, reason = should_stop_due_to_load()
     if should_stop:
@@ -680,6 +766,7 @@ def show_file_management(chat_id, file_id, user_id, message_id=None):
     else:
         bot.send_message(chat_id, text, reply_markup=kb)
 
+# ================= ADMIN =================
 @bot.message_handler(func=lambda m: m.text == "👑 Admin Panel" and is_admin(m.from_user.id))
 def admin_panel(message):
     bot.send_message(message.chat.id, "👑 <b>Admin Panel</b>", reply_markup=admin_panel_kb())
@@ -749,6 +836,7 @@ def do_broadcast(message):
             pass
     bot.send_message(message.chat.id, f"✅ Sent to {ok}/{len(users)} users.")
 
+# ================= CALLBACKS =================
 @bot.callback_query_handler(func=lambda c: True)
 def cb_handler(call):
     data = call.data
@@ -869,6 +957,7 @@ def cb_handler(call):
         bot.answer_callback_query(call.id, "Error")
         logger.error(f"callback err: {e}")
 
+# ================= GRACEFUL SHUTDOWN =================
 def _shutdown(signum=None, frame=None):
     STOP_EVENT.set()
     try:
@@ -880,6 +969,7 @@ def _shutdown(signum=None, frame=None):
 signal.signal(signal.SIGINT, _shutdown)
 signal.signal(signal.SIGTERM, _shutdown)
 
+# ================= AUTO-RESTART WRAPPER =================
 def start_bot_once():
     logger.info("Starting Telegram bot...")
     bot.infinity_polling(timeout=60, long_polling_timeout=50)
@@ -914,7 +1004,7 @@ def run_bot_forever():
             time.sleep(wait)
             continue
 
-# ================= DUMMY WEB SERVER FOR RAILWAY =================
+# ================= DUMMY WEB SERVER FOR RAILWAY/RENDER =================
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -927,7 +1017,7 @@ class HealthHandler(BaseHTTPRequestHandler):
 def start_web_server():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(("0.0.0.0", port), HealthHandler)
-    logger.info(f"🌐 Web server on port {port}")
+    logger.info(f"🌐 Web server running on port {port}")
     server.serve_forever()
 
 threading.Thread(target=start_web_server, daemon=True).start()
